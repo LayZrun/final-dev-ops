@@ -1,0 +1,100 @@
+---
+- name: Setup Laravel Project Environment
+  hosts: myhosts
+  become: yes
+
+  tasks:
+    - name: Add Repositroy ondrej/php to ubuntu
+      apt_repository:
+        repo: ppa:ondrej/php
+        state: present
+
+    - name: Update apt packages
+      apt:
+        update_cache: yes
+
+    - name: Install required packages
+      apt:
+        name:
+          - sqlite3
+        state: present
+        update_cache: yes
+
+    - name: Create Staging folder
+      file:
+        path: /var/www/html/staging
+        state: directory
+        owner: root
+        group: root
+        mode: "0777"
+
+    - name: Clone Repositroy into staging folder
+      git:
+        repo: https://github.com/LayZrun/final-dev-ops.git
+        dest: /var/www/html/staging
+        update: yes
+        force: yes
+      
+    - name: Change file permission
+      file:
+        path: /var/www/html/staging
+        owner: root
+        group: root
+        mode: "0777"
+        recurse: yes
+
+    - name: Run composer installl
+      command: composer install
+      args:
+        chdir: /var/www/html/staging
+      environment:
+        COMPOSER_ALLOW_SUPERUSER: 1
+
+    - name: Run npm install in staging folder
+      command: npm install
+      args:
+        chdir: /var/www/html/staging
+      environment:
+        COMPOSER_ALLOW_SUPERUSER: 1
+
+    - name: Copy .env file
+      command: cp .env.example .env
+      args:
+        chdir: /var/www/html/staging
+      environment:
+        COMPOSER_ALLOW_SUPERUSER: 1
+
+    - name: Generate Key
+      command: php artisan key:generate
+      args:
+        chdir: /var/www/html/staging
+      environment:
+        COMPOSER_ALLOW_SUPERUSER: 1
+
+    - name: Migration
+      command: php artisan migrate --force
+      args:
+        chdir: /var/www/html/staging
+      environment:
+        COMPOSER_ALLOW_SUPERUSER: 1
+      
+    - name: Run test
+      command: php artisan test
+      args:
+        chdir: /var/www/html/staging
+      environment:
+        COMPOSER_ALLOW_SUPERUSER: 1
+
+    - name: Create backup folder
+      file:
+        path: /var/www/html/backup
+        state: directory
+        owner: root
+        group: root
+        mode: "0777"
+    
+    - name: Backup SQlite
+      copy:
+        src: /var/www/html/staging/database/database.sqlite
+        dest: /var/www/html/backup
+      become: yes
